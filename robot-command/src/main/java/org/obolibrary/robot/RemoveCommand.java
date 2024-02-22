@@ -157,13 +157,7 @@ public class RemoveCommand implements Command {
 
     List<String> dropParameters =
         CommandLineHelper.getOptionalValues(line, "drop-axiom-annotations");
-    List<IRI> annotationsToDrop =
-        dropParameters.stream()
-            .filter(s -> !s.equalsIgnoreCase("all"))
-            .map(
-                curie ->
-                    CommandLineHelper.maybeCreateIRI(ioHelper, curie, "drop-axiom-annotations"))
-            .collect(Collectors.toList());
+    List<IRI> annotationsToDrop = getAnnotationsToDrop(dropParameters, ioHelper, ontology);
 
     // Get the objects to remove
     Set<OWLObject> relatedObjects = getObjects(line, ioHelper, ontology, selectGroups);
@@ -310,5 +304,58 @@ public class RemoveCommand implements Command {
     }
 
     return relatedObjects;
+  }
+
+  /**
+   * Processes drop-axiom-annotations parameters to resolve IRIs of the referenced annotation
+   * properties. Resolves both CURIe based direct annotation property references and pattern based
+   * term selection.
+   *
+   * @param dropParameters drop-axiom-annotations parameters provided to the command
+   * @param ioHelper IOHelper to get IRIs
+   * @param ontology OWLOntology to get objects from
+   * @return IRIs of the annotation properties to drop
+   * @throws Exception on issue getting terms or processing selects
+   */
+  private List<IRI> getAnnotationsToDrop(
+      List<String> dropParameters, IOHelper ioHelper, OWLOntology ontology) throws Exception {
+    // annotation property reference by CURIE
+    List<String> termsToDrop =
+        dropParameters.stream()
+            .filter(
+                s ->
+                    (s.contains(":")
+                        && !s.contains("=")
+                        && !s.contains("~")
+                        && !s.contains("*")
+                        && !s.contains("?")))
+            .collect(Collectors.toList());
+
+    List<IRI> annotationsToDrop =
+        termsToDrop.stream()
+            .map(
+                curie ->
+                    CommandLineHelper.maybeCreateIRI(ioHelper, curie, "drop-axiom-annotations"))
+            .collect(Collectors.toList());
+
+    // annotation property reference by selector
+    List<List<String>> patternsToDrop =
+        dropParameters.stream()
+            .filter(s -> !s.equalsIgnoreCase("all") && !termsToDrop.contains(s))
+            .map(dropParam -> CommandLineHelper.splitSelects(dropParam))
+            .collect(Collectors.toList());
+
+    if (!patternsToDrop.isEmpty()) {
+      List<IRI> selectedAnnotations =
+          RelatedObjectsHelper.selectGroups(
+                  ontology, ioHelper, OntologyHelper.getObjects(ontology), patternsToDrop)
+              .stream()
+              .filter(s -> s instanceof OWLAnnotationProperty)
+              .map(annotation -> ((OWLAnnotationProperty) annotation).getIRI())
+              .collect(Collectors.toList());
+      annotationsToDrop.addAll(selectedAnnotations);
+    }
+
+    return annotationsToDrop;
   }
 }

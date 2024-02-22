@@ -235,8 +235,8 @@ Create a "base" subset in which axiom annotations involving IAO:0000117 and IAO:
     robot remove --input template.owl \
       --base-iri http://example.com/ \
       --axioms external \
-      --drop-axiom-annotations IAO:0000117 \
-      --drop-axiom-annotations IAO:0000119 \
+      --drop-axiom-annotations "IAO:0000117" \
+      --drop-axiom-annotations "IAO:*9" \
       --output results/template-drop-axiom-remove.owl
 
       
